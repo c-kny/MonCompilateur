@@ -24,6 +24,7 @@ ws      [ \t\n\r]+
 alpha   [A-Za-z]
 digit   [0-9]
 number  {digit}+
+keyword	(DISPLAY|IF|THEN|ELSE|BEGIN|END|FOR|TO|DOWNTO|WHILE|DO|VAR|INTEGER|BOOLEAN|CHAR|DOUBLE)
 id	{alpha}({alpha}|{digit})*
 addop	(\+|\-|\|\|)
 mulop	(\*|\/|%|\&\&)
@@ -36,6 +37,7 @@ unknown [^\"A-Za-z0-9 \n\r\t\(\)\<\>\=\!\%\&\|\}\-\;\.]+
 {mulop}		return MULOP;
 {relop}		return RELOP;
 {number}	return NUMBER;
+{keyword}	return KEYWORD;
 {id}		return ID;
 {stringconst}	return STRINGCONST;
 "["		return RBRACKET;

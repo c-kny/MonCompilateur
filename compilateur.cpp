@@ -298,10 +298,146 @@ void AssignementStatement(void){
 	Expression();
 	cout << "\tpop "<<variable<<endl;
 }
+//IfStatement := "IF" Expression "THEN" Statement [ "ELSE" Statement ]
+void IfStatement(void){
+	unsigned long long tag = TagNumber++;
+	// Read new token after IF
+	current=(TOKEN) lexer->yylex();
 
-// Statement := AssignementStatement
-void Statement(void){
+	//1.Expression
+	Expression();
+	cout<<"\tpop %rax\t# Get the result of expression"<<endl;
+	cout<<"\tcmpq $0, %rax"<<endl;
+	cout<<"\tje Else"<<tag<<"\t# if FALSE, jump to Else"<<tag<<endl;
+	//THEN control
+	if(current!=KEYWORD||strcmp(lexer->YYText(),"THEN")!=0)
+		Error("mot-clé 'THEN' attendu");
+	current=(TOKEN) lexer->yylex();
+	Statement();
+	cout<<"\tjmp Next"<<tag<<"\t# Do not execute the else statement"<<endl;
+	cout<<"Else"<<tag<<":"<<endl; // Might be the same effective adress than Next:
+	if(current==KEYWORD&&strcmp(lexer->YYText(),"ELSE")==0){
+		current=(TOKEN) lexer->yylex();
+		Statement();
+	}
+	cout<<"Next"<<tag<<":"<<endl;
+}
+//WhileStatement := "WHILE" Expression "DO" Statement
+void WhileStatement(void){
+	unsigned long long tag=TagNumber++;
+	cout<<"While"<<tag<<":"<<endl;
+	current=(TOKEN) lexer->yylex();
+	//1.Expression
+	Expression();
+	cout << "\tpop %rax\t# Get the result of expression" << endl;
+    cout << "\tcmpq $0, %rax\t# Compare with FALSE" << endl;
+    cout << "\tje EndWhile" << tag << "\t# if FALSE, exit the loop" << endl;
+	if(current!=KEYWORD||strcmp(lexer->YYText(), "DO")!=0)
+		Error("mot-clé DO attendu");
+	current=(TOKEN) lexer->yylex();
+	Statement();
+	cout<<"\tjmp While"<<tag<<endl;
+	cout<<"EndWhile"<<tag<<":"<<endl;
+}
+
+//ForStatement := "FOR" AssignementStatement "To" Expression "DO" Statement
+void ForStatement(void){
+	unsigned long long tag=TagNumber++;
+	// to hold the variable name
+	string variable;
+	current=(TOKEN) lexer->yylex();
+	//1. Attribuer la valeur initiale (AssignementStatement)
+	if(current!=ID)
+	Error("Identificateur attendu pour la boucle FOR");
+
+	// Save variable name
+	variable=lexer->YYText();
 	AssignementStatement();
+	cout<<"For"<<tag<<":"<<endl;
+
+	//2.Controle TO ou DOWNTO
+	//TO pour ascendante
+	bool ascending=true;
+	if(current==KEYWORD&&strcmp(lexer->YYText(),"TO")==0)
+		ascending=true;
+	else if(current==KEYWORD&&strcmp(lexer->YYText(),"DOWNTO")==0)
+		ascending=false;
+	else
+		Error("'TO' ou 'DOWNTO' attendu après assignation");
+
+	current=(TOKEN) lexer->yylex();
+	// 3. Lire la valeur de fin (Expression)
+	Expression();
+
+	cout<<"\tpop %rbx\t# End value of the FOR"<<endl;
+    cout<<"\tpop %rax\t# Current value of "<<variable<<endl;
+    cout<<"\tcmpq %rbx, %rax"<<endl;
+
+    if(ascending)
+        cout<< "\tjg EndFor"<<tag <<"\t# if greater, exit"<<endl;
+    else
+        cout<<"\tjl EndFor"<< tag<<"\t# if less, exit"<<endl;
+	//4.Controle DO
+	if (!(current==KEYWORD&&strcmp(lexer->YYText(),"DO")==0))
+	Error("'DO' attendu après 'TO' ou 'DOWNTO'");
+	//Lire token aprés de DO
+	current=(TOKEN) lexer->yylex();
+
+	Statement();
+	if(ascending){
+		cout<<"\tpush "<<variable<<endl;
+		cout<<"\tpush $1"<<endl;
+		cout<<"\tpop %rbx"<<endl;
+		cout<<"\tpop %rax"<<endl;
+		cout<<"\taddq %rbx, %rax"<<endl;
+		cout<<"\tpush %rax"<<endl;
+		cout<<"\tpop "<<variable<<endl;
+	}
+	else{
+		cout<<"\tpush "<<variable<< endl;
+		cout<<"\tpush $1"<<endl;
+		cout<<"\tpop %rbx"<<endl;
+		cout<<"\tpop %rax"<<endl;
+		cout<<"\tsubq %rbx, %rax"<<endl;
+		cout<<"\tpush %rax" << endl;
+		cout<<"\tpop "<<variable<<endl;
+
+	cout<<"\tjmp For"<<tag<<endl;
+	cout<<"EndFor"<<tag<<":"<< endl;
+	}
+}
+
+//BlockStatement := "BEGIN" Statement { ";" Statement } "END"
+void BlockStatement(void){
+	current=(TOKEN) lexer->yylex();
+	Statement();
+	while(current==SEMICOLON){
+		current=(TOKEN) lexer->yylex();	// Skip the ";"
+		Statement();
+	};
+	if(current!=KEYWORD||strcmp(lexer->YYText(), "END")!=0)
+		Error("mot-clé END attendu");
+	current=(TOKEN) lexer->yylex();
+}
+
+// Statement := AssignementStatement | IfStatement | WhileStatement | ForStatement | BlockStatement
+void Statement(void){
+	if(current==ID)
+		AssignementStatement();
+	else if(current==KEYWORD){
+		if(strcmp(lexer->YYText(),"IF")==0)
+			IfStatement();
+		else if(strcmp(lexer->YYText(),"WHILE")==0)
+			WhileStatement();
+		else if(strcmp(lexer->YYText(),"FOR")==0)
+			ForStatement();
+		else if(strcmp(lexer->YYText(),"BEGIN")==0)
+			BlockStatement();
+		else
+			Error("mot clé inconnu");
+	}
+	else
+		Error("insturction attendue");
 }
 
 // StatementPart := Statement {";" Statement} "."
