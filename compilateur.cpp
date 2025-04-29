@@ -280,6 +280,7 @@ void Expression(void){
 		cout << "Suite"<<TagNumber<<":"<<endl;
 	}
 }
+void Statement(void); //Pour les appels avat déclaration
 
 // AssignementStatement := Identifier ":=" Expression
 void AssignementStatement(void){
