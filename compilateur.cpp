@@ -22,6 +22,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <set>
+#include <map>
 #include <FlexLexer.h>
 #include "tokeniser.h"
 #include <cstring>
@@ -31,6 +32,7 @@ using namespace std;
 enum OPREL {EQU, DIFF, INF, SUP, INFE, SUPE, WTFR};
 enum OPADD {ADD, SUB, OR, WTFA};
 enum OPMUL {MUL, DIV, MOD, AND ,WTFM};
+enum TYPES {UNSIGNED_INT, BOOLEAN};
 
 TOKEN current;				// Current token
 
@@ -40,10 +42,10 @@ FlexLexer* lexer = new yyFlexLexer; // This is the flex tokeniser
 // lexer->yylex() returns the type of the lexicon entry (see enum TOKEN in tokeniser.h)
 // and lexer->YYText() returns the lexicon entry as a string
 
-	
 set<string> DeclaredVariables;
 unsigned long TagNumber=0;
 
+//controle variable declareé ou pas
 bool IsDeclared(const char *id){
 	return DeclaredVariables.find(id)!=DeclaredVariables.end();
 }
@@ -72,37 +74,43 @@ void Error(string s){
 // RelationalOperator := "==" | "!=" | "<" | ">" | "<=" | ">="  
 // Digit := "0"|"1"|"2"|"3"|"4"|"5"|"6"|"7"|"8"|"9"
 // Letter := "a"|...|"z"
-	
+
+enum TYPES Expression(void);			// Called by Term() and calls Term()
+void Statement(void);
+void StatementPart(void);
 		
-void Identifier(void){
+enum TYPES Identifier(void){
 	cout << "\tpush "<<lexer->YYText()<<endl;
 	current=(TOKEN) lexer->yylex();
+	return UNSIGNED_INT;
 }
 
-void Number(void){
+enum TYPES Number(void){
 	cout <<"\tpush $"<<atoi(lexer->YYText())<<endl;
 	current=(TOKEN) lexer->yylex();
+	return UNSIGNED_INT;
 }
 
-void Expression(void);			// Called by Term() and calls Term()
-
-void Factor(void){
+enum TYPES Factor(void){
+	enum TYPES type;
 	if(current==RPARENT){
 		current=(TOKEN) lexer->yylex();
-		Expression();
+		type=Expression();
 		if(current!=LPARENT)
 			Error("')' était attendu");		// ")" expected
 		else
 			current=(TOKEN) lexer->yylex();
+			return type;
 	}
 	else 
 		if (current==NUMBER)
-			Number();
-	     	else
+			type=Number();
+	    else
 				if(current==ID)
-					Identifier();
+					type=Identifier();
 				else
 					Error("'(' ou chiffre ou lettre attendue");
+	return type;
 }
 
 // MultiplicativeOperator := "*" | "/" | "%" | "&&"
@@ -122,12 +130,15 @@ OPMUL MultiplicativeOperator(void){
 }
 
 // Term := Factor {MultiplicativeOperator Factor}
-void Term(void){
+enum TYPES Term(void){
+	TYPES type1, type2;
 	OPMUL mulop;
-	Factor();
+	type1=Factor();
 	while(current==MULOP){
 		mulop=MultiplicativeOperator();		// Save operator in local variable
-		Factor();
+		type2=Factor();
+		if(type1!=type2)
+			Error("types incompatibles dans l'expression");
 		cout << "\tpop %rbx"<<endl;	// get first operand
 		cout << "\tpop %rax"<<endl;	// get second operand
 		switch(mulop){
@@ -153,6 +164,7 @@ void Term(void){
 				Error("opérateur multiplicatif attendu");
 		}
 	}
+	return type1;
 }
 
 // AdditiveOperator := "+" | "-" | "||"
@@ -170,22 +182,25 @@ OPADD AdditiveOperator(void){
 }
 
 // SimpleExpression := Term {AdditiveOperator Term}
-void SimpleExpression(void){
+enum TYPES SimpleExpression(void){
+	TYPES type1, type2;
 	OPADD adop;
-	Term();
+	type1=Term();
 	while(current==ADDOP){
 		adop=AdditiveOperator();		// Save operator in local variable
-		Term();
+		type2=Term();
+		if(type1!=type2)
+			Error("types incompatibles dans l'expression");
 		cout << "\tpop %rbx"<<endl;	// get first operand
 		cout << "\tpop %rax"<<endl;	// get second operand
 		switch(adop){
 			case OR:
 				cout << "\taddq	%rbx, %rax\t# OR"<<endl;// operand1 OR operand2
-				break;			
+				break;	
 			case ADD:
 				cout << "\taddq	%rbx, %rax\t# ADD"<<endl;	// add both operands
 				break;			
-			case SUB:	
+			case SUB:
 				cout << "\tsubq	%rbx, %rax\t# SUB"<<endl;	// substract both operands
 				break;
 			default:
@@ -193,7 +208,7 @@ void SimpleExpression(void){
 		}
 		cout << "\tpush %rax"<<endl;			// store result
 	}
-
+	return type1;
 }
 
 // DeclarationPart := "[" Ident {"," Ident} "]"
@@ -243,12 +258,16 @@ OPREL RelationalOperator(void){
 }
 
 // Expression := SimpleExpression [RelationalOperator SimpleExpression]
-void Expression(void){
+enum TYPES Expression(void){
+	TYPES type1, type2;
 	OPREL oprel;
-	SimpleExpression();
+	type1=SimpleExpression();
 	if(current==RELOP){
 		oprel=RelationalOperator();
-		SimpleExpression();
+		type2=SimpleExpression();
+
+		if(type2!=type1)
+			Error("types incompatibles pour la comparaison");
 		cout << "\tpop %rax"<<endl;
 		cout << "\tpop %rbx"<<endl;
 		cout << "\tcmpq %rax, %rbx"<<endl;
@@ -278,12 +297,16 @@ void Expression(void){
 		cout << "\tjmp Suite"<<TagNumber<<endl;
 		cout << "Vrai"<<TagNumber<<":\tpush $0xFFFFFFFFFFFFFFFF\t\t# True"<<endl;	
 		cout << "Suite"<<TagNumber<<":"<<endl;
+		return BOOLEAN;
 	}
+	return type1;
 }
+
 void Statement(void); //Pour les appels avat déclaration
 
 // AssignementStatement := Identifier ":=" Expression
 void AssignementStatement(void){
+	enum TYPES type1, type2;
 	string variable;
 	if(current!=ID)
 		Error("Identificateur attendu");
@@ -292,21 +315,30 @@ void AssignementStatement(void){
 		exit(-1);
 	}
 	variable=lexer->YYText();
+	type1=UNSIGNED_INT;
 	current=(TOKEN) lexer->yylex();
 	if(current!=ASSIGN)
 		Error("caractères ':=' attendus");
 	current=(TOKEN) lexer->yylex();
-	Expression();
-	cout << "\tpop "<<variable<<endl;
+	type2=Expression();
+	if(type2!=type1){
+		Error("types incompatibles dans l'affectation");
+	}
+	else
+		cout << "\tpop "<<variable<<endl;
 }
+
 //IfStatement := "IF" Expression "THEN" Statement [ "ELSE" Statement ]
 void IfStatement(void){
 	unsigned long long tag = TagNumber++;
+	enum TYPES type_controle;
 	// Read new token after IF
 	current=(TOKEN) lexer->yylex();
 
 	//1.Expression
-	Expression();
+	type_controle=Expression();
+		if(type_controle!=BOOLEAN)
+			Error("La condition IF doit être de type BOOLEAN");
 	cout<<"\tpop %rax\t# Get the result of expression"<<endl;
 	cout<<"\tcmpq $0, %rax"<<endl;
 	cout<<"\tje Else"<<tag<<"\t# if FALSE, jump to Else"<<tag<<endl;
@@ -326,10 +358,13 @@ void IfStatement(void){
 //WhileStatement := "WHILE" Expression "DO" Statement
 void WhileStatement(void){
 	unsigned long long tag=TagNumber++;
+	enum TYPES type_controle;
 	cout<<"While"<<tag<<":"<<endl;
 	current=(TOKEN) lexer->yylex();
 	//1.Expression
-	Expression();
+	type_controle=Expression();
+		if(type_controle!=BOOLEAN)
+			Error("La condition WHILE doit être de type BOOLEAN");
 	cout << "\tpop %rax\t# Get the result of expression" << endl;
     cout << "\tcmpq $0, %rax\t# Compare with FALSE" << endl;
     cout << "\tje EndWhile" << tag << "\t# if FALSE, exit the loop" << endl;
