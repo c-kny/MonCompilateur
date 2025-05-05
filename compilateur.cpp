@@ -77,7 +77,9 @@ void Error(string s){
 // Letter := "a"|...|"z"
 
 enum TYPES Expression(void);			// Called by Term() and calls Term()
-		
+void Statement(void);
+void StatementPart(void);
+
 enum TYPES Identifier(void){
 	cout << "\tpush "<<lexer->YYText()<<endl;
 	current=(TOKEN) lexer->yylex();
@@ -228,29 +230,60 @@ enum TYPES SimpleExpression(void){
 	return type1;
 }
 
-// DeclarationPart := "[" Ident {"," Ident} "]"
-void DeclarationPart(void){
-	if(current!=RBRACKET)
-		Error("caractère '[' attendu");
-	cout << "\t.data"<<endl;
-	cout << "\t.align 8"<<endl;
-	
-	current=(TOKEN) lexer->yylex();
+enum TYPES Type(void){
+	if(current!=KEYWORD)
+		Error("Type attendu");
+	if(strcmp(lexer->YYText(), "INTEGER")==0){
+		current=(TOKEN) lexer->yylex();
+		return INTEGER;
+	}
+	else if(strcmp(lexer->YYText(), "BOOLEAN")==0){
+		current=(TOKEN) lexer->yylex();
+		return BOOLEAN;
+	}
+	else
+		Error("Type Inconnue");
+}
+
+
+// VarDeclaration := Ident {"," Ident} ":" Type
+void VarDeclaration(void){
+	set<string> idents;		//Créer un ensemble de strings non répétitives(avec set)
+	enum TYPES type;
 	if(current!=ID)
-		Error("Un identificater était attendu");
-	cout << lexer->YYText() << ":\t.quad 0"<<endl;
-	DeclaredVariables[lexer->YYText()]=INTEGER;     //Il stocke le type de token dans le type INTEGRER (nous l'avons ajouté avec map)
+		Error("Un identificateur était attendu");
+	idents.insert(lexer->YYText());		// ajoute le nom lu par le lexer à l'ensemble
 	current=(TOKEN) lexer->yylex();
+
 	while(current==COMMA){
 		current=(TOKEN) lexer->yylex();
 		if(current!=ID)
 			Error("Un identificateur était attendu");
-		cout << lexer->YYText() << ":\t.quad 0"<<endl;
-		DeclaredVariables[lexer->YYText()]=INTEGER; //
+		idents.insert(lexer->YYText());		// ajoute le nom lu par le lexer à l'ensemble
 		current=(TOKEN) lexer->yylex();
 	}
-	if(current!=LBRACKET)
-		Error("caractère ']' attendu");
+	if(current!=COLON)
+		Error("Caractère ':' attendu");
+	current=(TOKEN) lexer->yylex();
+
+	type=Type();  	//La fonction Type() est appelée, cette valeur est attribuée à la variable de type
+	for(set<string>::iterator it=idents.begin(); it!=idents.end(); ++it){
+		cout<<*it<<":\t.quad 0"<<endl;		// Réserve de la mémoire pour chaque identifiant et crée une variable de 64 bits initialisée à 0.
+		DeclaredVariables[*it] = type;		// enregistre le type de chaque identifiant
+	}
+}
+
+// VarDeclarationPart := "VAR" VarDeclaration {";" VarDeclaration} "."
+void VarDeclarationPart(void){
+	current=(TOKEN) lexer->yylex();
+	VarDeclaration();
+
+	while(current==SEMICOLON){
+		current=(TOKEN) lexer->yylex();
+		VarDeclaration();
+	}
+	if(current!=DOT)
+		Error("caractère '.' attendu");
 	current=(TOKEN) lexer->yylex();
 }
 
@@ -348,10 +381,28 @@ void AssignementStatement(void){
 
 //DisplayAssignement := "DISPLAY" Expression
 void DisplayAssignement(void){
+	enum TYPES type;
+	unsigned long long tag=++TagNumber;
 	current=(TOKEN) lexer->yylex();
+	type=Expression();
 	//l'instruction DISPLAY <expression> qui permet d'afficher le résultat d'une expression si son type est INTEGER sur la sortie standard
-	if(Expression()!=INTEGER)
+	if(type==INTEGER){
+		cout<<"\tpop %rdx\t#The value to be displayed"<<endl;			//%rdx doit contenir la valeur à afficher
+		cout<<"\tmovq $FormatString1, %rsi\t#\"%llu\\n\""<<endl;
+	}
+	else if(type==BOOLEAN){
+		cout << "\tpop %rdx\t# Zero : False, non-zero : true"<<endl;
+		cout << "\tcmpq $0, %rdx"<<endl;
+		cout << "\tje False"<<tag<<endl;
+		cout << "\tmovq $TrueString, %rsi\t# \"TRUE\\n\""<<endl;
+		cout << "\tjmp Next"<<tag<<endl;
+		cout << "False"<<tag<<":"<<endl;
+		cout << "\tmovq $FalseString, %rsi\t# \"FALSE\\n\""<<endl;
+		cout << "Next"<<tag<<":"<<endl;
+	}
+	else
 		Error("DISPLAY ne fonctionne que pour les nombres entiers");
+<<<<<<< HEAD
 	// Pour mac :
 	//cout<<"\tpop %rdx\t#The value to be displayed"<<endl;			//%rdx doit contenir la valeur à afficher
 	//cout<<"\tmovq $FormatString1, %rdi\t#\"%llu\\n\""<<endl;
@@ -364,6 +415,11 @@ void DisplayAssignement(void){
 	cout<<"\tmovq (%rsp), %rsi\t#\"%llu\\n\""<<endl;
 	cout<<"\tmovl $0, %eax\t"<<endl;
 	cout<<"\tcall	printf@PLT\t"<<endl;
+=======
+	cout << "\tmovl	$1, %edi"<<endl;
+	cout << "\tmovl	$0, %eax"<<endl;
+	cout << "\tcall	__printf_chk@PLT"<<endl;
+>>>>>>> 0544a30 (+TP6)
 }
 
 //IfStatement := "IF" Expression "THEN" Statement [ "ELSE" Statement ]
@@ -535,7 +591,7 @@ void StatementPart(void){
 // Program := [DeclarationPart] StatementPart
 void Program(void){
 	if(current==RBRACKET)
-		DeclarationPart();
+		VarDeclarationPart();
 	StatementPart();	
 }
 
@@ -544,6 +600,8 @@ int main(void){	// First version : Source code on standard input and assembly co
 	cout << "\t\t\t# This code was produced by the CERI Compiler"<<endl;
 	cout << ".data"<<endl;
 	cout << "FormatString1:\t.string \"%llu\\n\"\t# used by printf to display 64-bit unsigned integers"<<endl;
+	cout << "TrueString:\t.string \"TRUE\\n\"\t# used by printf to display the boolean value TRUE"<<endl; 
+	cout << "FalseString:\t.string \"FALSE\\n\"\t# used by printf to display the boolean value FALSE"<<endl;
 	// Let's proceed to the analysis and code production
 	current=(TOKEN) lexer->yylex();
 	Program();
@@ -554,5 +612,4 @@ int main(void){	// First version : Source code on standard input and assembly co
 		cerr <<"Caractères en trop à la fin du programme : ["<<current<<"]";
 		Error("."); // unexpected characters at the end of program
 	}
-
 }
