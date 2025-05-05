@@ -352,12 +352,18 @@ void DisplayAssignement(void){
 	//l'instruction DISPLAY <expression> qui permet d'afficher le résultat d'une expression si son type est INTEGER sur la sortie standard
 	if(Expression()!=INTEGER)
 		Error("DISPLAY ne fonctionne que pour les nombres entiers");
-	cout<<"\tpop %rdx\t#The value to be displayed"<<endl;			//%rdx doit contenir la valeur à afficher
+	// Pour mac :
+	//cout<<"\tpop %rdx\t#The value to be displayed"<<endl;			//%rdx doit contenir la valeur à afficher
+	//cout<<"\tmovq $FormatString1, %rdi\t#\"%llu\\n\""<<endl;
+	//cout<<"\tmovl $0, %eax\t"<<endl;
+	//cout<<"\tpush %rbp\t#save the value in %rbp (modified by printf)"<<endl;
+	//cout<<"\tcall	printf@PLT\t"<<endl;
+	//cout<<"\tpop %rbp\t#restore %rbp value"<<endl;
+
 	cout<<"\tmovq $FormatString1, %rdi\t#\"%llu\\n\""<<endl;
+	cout<<"\tmovq (%rsp), %rsi\t#\"%llu\\n\""<<endl;
 	cout<<"\tmovl $0, %eax\t"<<endl;
-	cout<<"\tpush %rbp\t#save the value in %rbp (modified by printf)"<<endl;
 	cout<<"\tcall	printf@PLT\t"<<endl;
-	cout<<"\tpop %rbp\t#restore %rbp value"<<endl;
 }
 
 //IfStatement := "IF" Expression "THEN" Statement [ "ELSE" Statement ]

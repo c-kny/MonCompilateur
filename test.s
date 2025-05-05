@@ -22,11 +22,9 @@ main:			# The main function body :
 	pop %rax
 	addq	%rbx, %rax	# ADD
 	push %rax
-	pop %rdx	#The value to be displayed
 	movq $FormatString1, %rdi	#"%llu\n"
+	movq (%rsp), %rsi	#"%llu\n"
 	movl $0, %eax	
-	push %rbp	#save the value in %rbp (modified by printf)
 	call	printf@PLT	
-	pop %rbp	#restore %rbp value
 	movq %rbp, %rsp		# Restore the position of the stack's top
 	ret			# Return from main function
