@@ -186,14 +186,31 @@ enum TYPES Factor(void){
 		else
 			current=(TOKEN) lexer->yylex();
 	}
-	else if (current==NUMBER)
+	// Exemple : si x est un booléen, alors '!x' retourne aussi un booléen.
+	// On vérifie d'abord que l'expression est bien de type BOOLEAN.
+	// Ensuite, on effectue l'opération, et on retourne directement le type BOOLEAN.
+	else if(current==NOT){
+		current=(TOKEN) lexer->yylex();
+		type=Factor();
+		if(type!=BOOLEAN)
+			Error("Operateur '!' s'applique seulement aux BOOLEENS");
+		cout<<"\tpop %rax"<<endl;
+		cout<<"\txor $1, %rax\t#Pour NOT BOOLEAN (0->1, 1->0)"<<endl;
+		cout<<"\tpush %rax"<<endl;
+		return BOOLEAN;
+	}
+	else if (current==NUMBER){
 		type=Number();
-	else if(current==ID)
+	}
+	else if(current==ID){
 		type=Identifier();
-	else if(current==CHARCONST)
+	}
+	else if(current==CHARCONST){
 		type=CharConst();
-	else
+	}
+	else{
 		Error("'(' ou chiffre ou lettre attendue");
+	}
 	return type;
 }
 
@@ -208,7 +225,8 @@ OPMUL MultiplicativeOperator(void){
 		opmul=MOD;
 	else if(strcmp(lexer->YYText(),"&&")==0)
 		opmul=AND;
-	else opmul=WTFM;
+	else 
+		opmul=WTFM;			// 'WTFM' représente une valeur par défaut utilisée pour signaler un opérateur non reconnu.
 	current=(TOKEN) lexer->yylex();
 	return opmul;
 }
@@ -219,6 +237,8 @@ enum TYPES Term(void){
 	TYPES type1, type2;
 	OPMUL mulop;
 	type1=Factor();
+	if(type1!=DOUBLE&&type1!=INTEGER&&type1!=BOOLEAN)
+		Error("Le type doit être DOUBLE, BOOLEAN ou INTEGER cette expression");
 	while(current==MULOP){
 		mulop=MultiplicativeOperator();		// Save operator in local variable
 		type2=Factor();
@@ -231,6 +251,7 @@ enum TYPES Term(void){
 					Error("le type doit être BOOLEAN dans l'expression");
 				cout << "\tpop %rbx"<<endl;	// get first operand
 				cout << "\tpop %rax"<<endl;	// get second operand
+				// Opérateur logique AND (booléen), implémenté comme une multiplication entière
 				cout << "\tmulq	%rbx"<<endl;	// a * b -> %rdx:%rax    # Résultat dans RDX:RAX, mais ici on n’utilise que RAX
 				cout << "\tpush %rax\t# AND"<<endl;	// store result		# On stocke uniquement la partie basse du résultat (64 bits)
 				break;
@@ -306,6 +327,8 @@ enum TYPES SimpleExpression(void){
 	TYPES type1, type2;
 	OPADD adop;
 	type1=Term();
+	if(type1!=DOUBLE&&type1!=INTEGER&&type1!=BOOLEAN)
+		Error("Le type doit être DOUBLE, BOOLEAN ou INTEGER cette expression");
 	while(current==ADDOP){
 		adop=AdditiveOperator();		// Save operator in local variable
 		type2=Term();
@@ -347,8 +370,8 @@ enum TYPES SimpleExpression(void){
 				if(type2==INTEGER){
 					cout << "\tpop %rbx"<<endl;	// obtenir le premier opérande
 					cout << "\tpop %rax"<<endl;	// obtenir le deuxième opérande	
-					cout << "\tsubq	%rbx, %rax\t# SUB"<<endl;	// substract both operands
-					cout << "\tpush %rax\t# DIV"<<endl;		// stocker le resultat
+					cout << "\tsubq	%rbx, %rax\t# ADD"<<endl;	// substract both operands
+					cout << "\tpush %rax\t# SUB"<<endl;		// stocker le resultat
 				}
 				else{
 					cout << "\tfldl 8(%rsp)\t\t# Charge op1 (ancien), devient %st(0)" << endl;
@@ -386,6 +409,7 @@ enum TYPES Type(void){
 	}
 	else
 		Error("Type Inconnue");
+		exit(-1);		// pour éviter l’avertissement de non-retour
 }
 
 // VarDeclaration := Ident {"," Ident} ":" Type
@@ -440,7 +464,7 @@ void VarDeclarationPart(void){
 		Error("caractère '.' attendu");
 	current=(TOKEN) lexer->yylex();
 }
-
+// Cette fonction reconnaît les opérateurs relationnels et retourne l’énumération correspondante.
 // RelationalOperator := "==" | "!=" | "<" | ">" | "<=" | ">="  
 OPREL RelationalOperator(void){
 	OPREL oprel;
@@ -474,7 +498,7 @@ enum TYPES Expression(void){
 		type2=SimpleExpression();
 
 		if(type2!=type1){
-			Error("types incompatibles pour la comparaison");
+			Error("Les deux expressions doivent être du même type pour la comparaison");
 		}
 		if(type1!=DOUBLE){
 			cout << "\tpop %rax"<<endl;
@@ -567,22 +591,24 @@ void DisplayAssignement(void){
 	//l'instruction DISPLAY <expression> qui permet d'afficher le résultat d'une expression si son type est INTEGER sur la sortie standard
 	if(type==INTEGER){
 		cout<<"\tpop %rdx\t#The value to be displayed"<<endl;			//%rdx doit contenir la valeur à afficher
-		cout<<"\tmovq $FormatString1, %rsi\t#\"%llu\\n\""<<endl;
+		cout<<"\tmovq %rdx, %rsi\t# Copie vers le registre d'argument"<<endl;   
+		cout<<"\tmovq $FormatString1, %rdi\t#\"%llu\\n\""<<endl;
+		cout<<"\tmovl $0, %eax\t# Préparation pour printf variadique"<<endl;
 	}
 	else if(type==BOOLEAN){
 		cout<<"\tpop %rdx\t# Zero : False, non-zero : true"<<endl;
 		cout<<"\tcmpq $0, %rdx"<<endl;
 		cout<<"\tje False"<<tag<<endl;
-		cout<<"\tmovq $TrueString, %rsi\t# \"TRUE\\n\""<<endl;
+		cout<<"\tmovq $TrueString, %rdi\t# \"TRUE\\n\""<<endl;
 		cout<<"\tjmp Next"<<tag<<endl;
 		cout<<"False"<<tag<<":"<<endl;
-		cout<<"\tmovq $FalseString, %rsi\t# \"FALSE\\n\""<<endl;
+		cout<<"\tmovq $FalseString, %rdi\t# \"FALSE\\n\""<<endl;
 		cout<<"Next"<<tag<<":"<<endl;
+		cout<<"\tmovl $0, %eax\t# Préparation pour printf variadique"<<endl;
 	}
 	else if(type==DOUBLE){
 		cout << "\tfldl (%rsp)\t\t# Charge le DOUBLE du sommet de la pile dans %st(0)" << endl;
 		cout << "\taddq $8, %rsp\t\t# Libère l'espace de la pile (on a lu 8 octets)" << endl;
-	
 		cout << "\tsubq $8, %rsp\t\t# Réserve de l’espace temporaire sur la pile" << endl;
 		cout << "\tfstpl (%rsp)\t\t# Stocke %st(0) dans cet emplacement temporaire" << endl;
 		cout << "\tmovsd (%rsp), %xmm0\t# Copie le DOUBLE vers %xmm0 pour printf" << endl;
@@ -591,9 +617,9 @@ void DisplayAssignement(void){
 		cout<<"\tmovl $1, %eax\t#Préperation pour appele printf"<<endl;
 	}
 	else if(type==CHAR){
-		cout << "\tpop %rsi\t# Caractère à afficher dans %al" << endl;
-		cout << "\tmovq $FormatString3, %rdi\t# \"%c\\n\"" << endl;
-		cout << "\tmovl $0, %eax" << endl;
+		cout<<"\tpop %rsi\t# Caractère à afficher dans %al"<<endl;
+		cout<<"\tmovq $FormatString3, %rdi\t# \"%c\\n\""<<endl;
+		cout<<"\tmovl $0, %eax"<<endl;
 	}
 	else
 		Error("DISPLAY ne fonctionne que pour les nombres entiers");
@@ -616,8 +642,8 @@ void IfStatement(void){
 
 	//1.Expression
 	type_controle=Expression();
-		if(type_controle!=BOOLEAN)
-			Error("La condition IF doit être de type BOOLEAN");
+	if(type_controle!=BOOLEAN)
+		Error("La condition IF doit être de type BOOLEAN");
 	cout<<"\tpop %rax\t# Get the result of expression"<<endl;
 	cout<<"\tcmpq $0, %rax"<<endl;
 	cout<<"\tje Else"<<tag<<"\t# if FALSE, jump to Else"<<tag<<endl;
@@ -642,8 +668,8 @@ void WhileStatement(void){
 	current=(TOKEN) lexer->yylex();
 	//1.Expression
 	type_controle=Expression();
-		if(type_controle!=BOOLEAN)
-			Error("La condition WHILE doit être de type BOOLEAN");
+	if(type_controle!=BOOLEAN)
+		Error("La condition WHILE doit être de type BOOLEAN");
 	cout << "\tpop %rax\t# Get the result of expression" << endl;
     cout << "\tcmpq $0, %rax\t# Compare with FALSE" << endl;
     cout << "\tje EndWhile" << tag << "\t# if FALSE, exit the loop" << endl;
@@ -765,7 +791,7 @@ void Statement(void){
 			Error("mot clé inconnu");
 	}
 	else
-		Error("insturction attendue");
+		Error("instruction attendue");
 }
 
 // StatementPart := Statement {";" Statement} "."
