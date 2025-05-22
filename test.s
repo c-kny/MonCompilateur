@@ -1,10 +1,15 @@
 			# This code was produced by the CERI Compiler
 .data
-FormatString1:	.string "%llu\n"	# used by printf to display 64-bit unsigned integers
-FormatString2:	.string "%f"	# used by printf to display 64-bit floating point numbers
-FormatString3:	.string "%c"	# used by printf to display a 8-bit single character
-TrueString:	.string "TRUE\n"	# used by printf to display the boolean value TRUE
-FalseString:	.string "FALSE\n"	# used by printf to display the boolean value FALSE
+FormatString1:	.string "%llu
+"	# used by printf to display 64-bit unsigned integers
+FormatString2:	.string "%lf
+"	# used by printf to display 64-bit floating point numbers
+FormatString3:	.string "%c
+"	# used by printf to display a 8-bit single character
+TrueString:	.string "TRUE
+"	# used by printf to display the boolean value TRUE
+FalseString:	.string "FALSE
+"	# used by printf to display the boolean value FALSE
 a:	.quad 0
 b:	.quad 0
 c1:	.byte 0
@@ -39,14 +44,10 @@ main:			# The main function body :
 	fldl (%rsp)	# Charge la valeur (DOUBLE) du sommet de la pile dans %st(0)
 	addq $8, %rsp	# Supprime l’emplacement du sommet de la pile (on a lu 8 octets)
 	fstpl denum	# Stocke la valeur de %st(0) dans la variable (et dépile %st(0))
-	fldl num	# Charge le double dans %st(0)
-	subq $8, %rsp		# Alloue de l’espace sur la pile
-	fstpl (%rsp)		# Stocke %st(0) sur la pile générale
-	fldl denum	# Charge le double dans %st(0)
-	subq $8, %rsp		# Alloue de l’espace sur la pile
-	fstpl (%rsp)		# Stocke %st(0) sur la pile générale
-	fldl	8(%rsp)		# Charge op1 (dividende), devient %st(0)
-	fldl (%rsp)		# Charge op2 (diviseur), devient %st(0), op1 devient %st(1)
+	push num
+	push denum
+	fldl	(%rsp)		# Charge op1 (dividende), devient %st(0)
+	fldl 8(%rsp)		# Charge op2 (diviseur), devient %st(0), op1 devient %st(1)
 	fdivp %st(0), %st(1)	# %st(1) = op1 / op2, puis %st(0) est dépilé
 	fstpl 8(%rsp)		# Stocke le résultat à la place de op1
 	addq $8, %rsp		# Supprime l'emplacement de op2 de la pile
@@ -56,9 +57,7 @@ main:			# The main function body :
 	push $1
 	pop a
 While0:
-	fldl frac	# Charge le double dans %st(0)
-	subq $8, %rsp		# Alloue de l’espace sur la pile
-	fstpl (%rsp)		# Stocke %st(0) sur la pile générale
+	push frac
 	subq $8,%rsp			# allocate 8 bytes on stack's top
 	movl	$2576980378, (%rsp)	# Conversion of 0.1 (32 bit high part)
 	movl	$1069128089, 4(%rsp)	# Conversion of 0.1 (32 bit low part)
@@ -75,67 +74,59 @@ Suite2:
 	pop %rax	# Get the result of expression
 	cmpq $0, %rax	# Compare with FALSE
 	je EndWhile0	# if FALSE, exit the loop
-	movq $0, %rax		# Nettoie %rax
-	movb c1, %al	# Charge le caractère dans %al (1 octet)
-	push %rax		# Empile en 64 bits via %rax
-	pop %rsi	# Caractère à afficher dans %al
+	push c1
+	pop %rsi			# get character in the 8 lowest bits of %si
 	movq $FormatString3, %rdi	# "%c\n"
-	movl $0, %eax
-	call	printf@PLT	
+	movl	$0, %eax
+	call	printf@PLT
 	movq $0, %rax
 	movb $'=', %al	# %al est la partie basse de %rax (8 bits) pour stocker un caractère
 	push %rax	#Empile la version 64 bits du caractère '='
-	pop %rsi	# Caractère à afficher dans %al
+	pop %rsi			# get character in the 8 lowest bits of %si
 	movq $FormatString3, %rdi	# "%c\n"
-	movl $0, %eax
-	call	printf@PLT	
-	fldl frac	# Charge le double dans %st(0)
-	subq $8, %rsp		# Alloue de l’espace sur la pile
-	fstpl (%rsp)		# Stocke %st(0) sur la pile générale
-	fldl (%rsp)		# Charge le DOUBLE du sommet de la pile dans %st(0)
-	addq $8, %rsp		# Libère l'espace de la pile (on a lu 8 octets)
-	subq $8, %rsp		# Réserve de l’espace temporaire sur la pile
-	fstpl (%rsp)		# Stocke %st(0) dans cet emplacement temporaire
-	movsd (%rsp), %xmm0	# Copie le DOUBLE vers %xmm0 pour printf
-	addq $8, %rsp		# Nettoie la pile temporaire
-	movq $FormatString2, %rdi	#"%f\n"
-	movl $1, %eax	#Préperation pour appele printf
-	call	printf@PLT	
+	movl	$0, %eax
+	call	printf@PLT
+	push frac
+	movsd	(%rsp), %xmm0		# &stack top -> %xmm0
+	subq	$16, %rsp		# allocation for 3 additional doubles
+	movsd %xmm0, 8(%rsp)
+	movq $FormatString2, %rdi	# "%lf\n"
+	movq	$1, %rax
+	call	printf
+nop
+	addq $24, %rsp			# pop nothing
 	movq $0, %rax
 	movb $'\n', %al	# %al est la partie basse de %rax (8 bits) pour stocker un caractère
 	push %rax	#Empile la version 64 bits du caractère '\n'
-	pop %rsi	# Caractère à afficher dans %al
+	pop %rsi			# get character in the 8 lowest bits of %si
 	movq $FormatString3, %rdi	# "%c\n"
-	movl $0, %eax
-	call	printf@PLT	
-	movq $0, %rax		# Nettoie %rax
-	movb c2, %al	# Charge le caractère dans %al (1 octet)
-	push %rax		# Empile en 64 bits via %rax
-	pop %rsi	# Caractère à afficher dans %al
+	movl	$0, %eax
+	call	printf@PLT
+	push c2
+	pop %rsi			# get character in the 8 lowest bits of %si
 	movq $FormatString3, %rdi	# "%c\n"
-	movl $0, %eax
-	call	printf@PLT	
+	movl	$0, %eax
+	call	printf@PLT
 	movq $0, %rax
 	movb $'=', %al	# %al est la partie basse de %rax (8 bits) pour stocker un caractère
 	push %rax	#Empile la version 64 bits du caractère '='
-	pop %rsi	# Caractère à afficher dans %al
+	pop %rsi			# get character in the 8 lowest bits of %si
 	movq $FormatString3, %rdi	# "%c\n"
-	movl $0, %eax
-	call	printf@PLT	
+	movl	$0, %eax
+	call	printf@PLT
 	push a
-	pop %rdx	#The value to be displayed
-	movq $FormatString1, %rsi	#"%llu\n"
-	call	printf@PLT	
+	pop %rsi	# The value to be displayed
+	movq $FormatString1, %rdi	# "%llu\n"
+	movl	$0, %eax
+	call	printf@PLT
 	movq $0, %rax
 	movb $'\n', %al	# %al est la partie basse de %rax (8 bits) pour stocker un caractère
 	push %rax	#Empile la version 64 bits du caractère '\n'
-	pop %rsi	# Caractère à afficher dans %al
+	pop %rsi			# get character in the 8 lowest bits of %si
 	movq $FormatString3, %rdi	# "%c\n"
-	movl $0, %eax
-	call	printf@PLT	
-	fldl denum	# Charge le double dans %st(0)
-	subq $8, %rsp		# Alloue de l’espace sur la pile
-	fstpl (%rsp)		# Stocke %st(0) sur la pile générale
+	movl	$0, %eax
+	call	printf@PLT
+	push denum
 	subq $8,%rsp			# allocate 8 bytes on stack's top
 	movl	$0, (%rsp)	# Conversion of 1 (32 bit high part)
 	movl	$1072693248, 4(%rsp)	# Conversion of 1 (32 bit low part)
@@ -147,14 +138,10 @@ Suite2:
 	fldl (%rsp)	# Charge la valeur (DOUBLE) du sommet de la pile dans %st(0)
 	addq $8, %rsp	# Supprime l’emplacement du sommet de la pile (on a lu 8 octets)
 	fstpl denum	# Stocke la valeur de %st(0) dans la variable (et dépile %st(0))
-	fldl num	# Charge le double dans %st(0)
-	subq $8, %rsp		# Alloue de l’espace sur la pile
-	fstpl (%rsp)		# Stocke %st(0) sur la pile générale
-	fldl denum	# Charge le double dans %st(0)
-	subq $8, %rsp		# Alloue de l’espace sur la pile
-	fstpl (%rsp)		# Stocke %st(0) sur la pile générale
-	fldl	8(%rsp)		# Charge op1 (dividende), devient %st(0)
-	fldl (%rsp)		# Charge op2 (diviseur), devient %st(0), op1 devient %st(1)
+	push num
+	push denum
+	fldl	(%rsp)		# Charge op1 (dividende), devient %st(0)
+	fldl 8(%rsp)		# Charge op2 (diviseur), devient %st(0), op1 devient %st(1)
 	fdivp %st(0), %st(1)	# %st(1) = op1 / op2, puis %st(0) est dépilé
 	fstpl 8(%rsp)		# Stocke le résultat à la place de op1
 	addq $8, %rsp		# Supprime l'emplacement de op2 de la pile
@@ -181,19 +168,19 @@ Suite12:
 	pop %rdx	# Zero : False, non-zero : true
 	cmpq $0, %rdx
 	je False11
-	movq $TrueString, %rsi	# "TRUE\n"
+	movq $TrueString, %rdi	# "TRUE\n"
 	jmp Next11
 False11:
-	movq $FalseString, %rsi	# "FALSE\n"
+	movq $FalseString, %rdi	# "FALSE\n"
 Next11:
-	call	printf@PLT	
+	call	puts@PLT
 	movq $0, %rax
 	movb $'\n', %al	# %al est la partie basse de %rax (8 bits) pour stocker un caractère
 	push %rax	#Empile la version 64 bits du caractère '\n'
-	pop %rsi	# Caractère à afficher dans %al
+	pop %rsi			# get character in the 8 lowest bits of %si
 	movq $FormatString3, %rdi	# "%c\n"
-	movl $0, %eax
-	call	printf@PLT	
+	movl	$0, %eax
+	call	printf@PLT
 	jmp While0
 EndWhile0:
 	movq %rbp, %rsp		# Restore the position of the stack's top

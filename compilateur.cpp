@@ -89,59 +89,14 @@ enum TYPES Identifier(void){
 		cerr << "Erreur : Variable '"<<lexer->YYText()<<"' non déclarée"<<endl;
 		exit(-1);
 	}
-	type = DeclaredVariables[lexer->YYText()];
-
-	switch(type){
-		case INTEGER:
-		case BOOLEAN:
-			cout <<"\tpush "<<lexer->YYText()<< endl;
-			break;
-
-		case DOUBLE:
-			cout << "\tfldl "<< lexer->YYText()<< "\t# Charge le double dans %st(0)" << endl;
-			cout << "\tsubq $8, %rsp\t\t# Alloue de l’espace sur la pile" << endl;
-			cout << "\tfstpl (%rsp)\t\t# Stocke %st(0) sur la pile générale" << endl;
-			break;
-
-		case CHAR:
-			cout << "\tmovq $0, %rax\t\t# Nettoie %rax" << endl;
-			cout << "\tmovb " <<lexer->YYText()<< ", %al\t# Charge le caractère dans %al (1 octet)" << endl;
-			cout << "\tpush %rax\t\t# Empile en 64 bits via %rax" << endl;
-			break;
-
-		default:
-			Error("Type inconnu pour identifiant");
-	}
+	type=DeclaredVariables[lexer->YYText()];
+	cout << "\tpush "<<lexer->YYText()<<endl;
 	current=(TOKEN) lexer->yylex();
 	return type;
 }
-/*
+
 enum TYPES Number(void){
-	double f;
-	unsigned long* base;
-	unsigned long* haute;
-	string number = lexer->YYText();
-
-	if (number.find('.') != string::npos){		//Contrôle si c'est un DOUBLE)
-		//if le type est DOUBLE -> on regarde avec deux base : Partie haute(4 octe) et Partie Base(4 Octe)
-		f = atof(lexer->YYText()); // Partie basse (4 octets)
-		base = (unsigned long*) &f;		// Partie basse (4 octets)
-		haute = (unsigned long*) (&f+1); // Partie haute (4 octets)
-
-		cout << "\tsubq $8, %rsp\t\t#Alloue 8 octets sur la pile" << endl;
-		cout << "\tmovl $"<<*base<<", (%rsp)\t# Partie basse du float " << f << endl;
-		cout << "\tmovl $" <<*haute<< ", 4(%rsp)\t#Partie haute du float " << f << endl;
-
-		current = (TOKEN) lexer->yylex();
-		return DOUBLE;
-	}
-	// Sinon, c’est un entier
-	cout <<"\tpush $"<<atoi(lexer->YYText())<<endl;
-	current=(TOKEN) lexer->yylex();
-	return INTEGER;
-}
-*/
-enum TYPES Number(void){
+	bool is_a_decimal=false;
 	double d;					// 64-bit float
 	unsigned int *i;			// pointer to a 32 bit unsigned int 
 	string	number=lexer->YYText();
@@ -164,7 +119,8 @@ enum TYPES Number(void){
 	}
 	
 }
-	
+
+
 //cette fonction pour un seul caractère encadré par des guillemets simples.
 enum TYPES CharConst(void){
 	cout<<"\tmovq $0, %rax"<<endl;		//On initialise %rax à 0 (nécessaire car on n’utilise que %al, soit 1 octet sur 8)
@@ -199,7 +155,7 @@ enum TYPES Factor(void){
 		cout<<"\tpush %rax"<<endl;
 		return BOOLEAN;
 	}
-	else if (current==NUMBER){
+	else if(current==NUMBER){
 		type=Number();
 	}
 	else if(current==ID){
@@ -237,8 +193,7 @@ enum TYPES Term(void){
 	TYPES type1, type2;
 	OPMUL mulop;
 	type1=Factor();
-	if(type1!=DOUBLE&&type1!=INTEGER&&type1!=BOOLEAN)
-		Error("Le type doit être DOUBLE, BOOLEAN ou INTEGER cette expression");
+
 	while(current==MULOP){
 		mulop=MultiplicativeOperator();		// Save operator in local variable
 		type2=Factor();
@@ -285,8 +240,8 @@ enum TYPES Term(void){
 					cout << "\tpush %rax\t# DIV"<<endl;		// store result
 				}
 				else{
-					cout << "\tfldl	8(%rsp)\t\t# Charge op1 (dividende), devient %st(0)" << endl;
-					cout << "\tfldl (%rsp)\t\t# Charge op2 (diviseur), devient %st(0), op1 devient %st(1)" << endl;
+					cout << "\tfldl	(%rsp)\t\t# Charge op1 (dividende), devient %st(0)" << endl;
+					cout << "\tfldl 8(%rsp)\t\t# Charge op2 (diviseur), devient %st(0), op1 devient %st(1)" << endl;
 					cout << "\tfdivp %st(0), %st(1)\t# %st(1) = op1 / op2, puis %st(0) est dépilé" << endl;
 					cout << "\tfstpl 8(%rsp)\t\t# Stocke le résultat à la place de op1" << endl;
 					cout << "\taddq $8, %rsp\t\t# Supprime l'emplacement de op2 de la pile" << endl;
@@ -327,8 +282,7 @@ enum TYPES SimpleExpression(void){
 	TYPES type1, type2;
 	OPADD adop;
 	type1=Term();
-	if(type1!=DOUBLE&&type1!=INTEGER&&type1!=BOOLEAN)
-		Error("Le type doit être DOUBLE, BOOLEAN ou INTEGER cette expression");
+
 	while(current==ADDOP){
 		adop=AdditiveOperator();		// Save operator in local variable
 		type2=Term();
@@ -374,8 +328,8 @@ enum TYPES SimpleExpression(void){
 					cout << "\tpush %rax\t# SUB"<<endl;		// stocker le resultat
 				}
 				else{
-					cout << "\tfldl 8(%rsp)\t\t# Charge op1 (ancien), devient %st(0)" << endl;
-					cout << "\tfldl (%rsp)\t\t# Charge op2 (récent), devient %st(0), op1 devient %st(1)" << endl;
+					cout << "\tfldl (%rsp)\t\t# Charge op1 (ancien), devient %st(0)" << endl;
+					cout << "\tfldl 8(%rsp)\t\t# Charge op2 (récent), devient %st(0), op1 devient %st(1)" << endl;
 					cout << "\tfsubp %st(0), %st(1)\t# %st(1) = op1 - op2, puis %st(0) est dépilé" << endl;
 					cout << "\tfstpl 8(%rsp)\t\t# Stocke le résultat à la place de op1" << endl;
 					cout << "\taddq $8, %rsp\t\t# Supprime l'emplacement de op2 de la pile" << endl;
@@ -434,16 +388,21 @@ void VarDeclaration(void){
 
 	type=Type();  	//La fonction Type() est appelée, cette valeur est attribuée à la variable de type
 	for(set<string>::iterator it=idents.begin(); it!=idents.end(); ++it){
-		if(type==INTEGER){
-			cout<<*it<<":\t.quad 0"<<endl;		// Réserve de la mémoire pour chaque identifiant et crée une variable de 64 bits initialisée à 0.
-		}
-		else if(type==DOUBLE){
-			cout<<*it<<":\t.double 0.0"<<endl; 		//Pour les flottants 64 bits
-		}
-		else if(type==CHAR){
-			cout<<*it<<":\t.byte 0"<<endl;  //pour les caractères
-		}
-		DeclaredVariables[*it]=type;		// enregistre le type de chaque identifiant
+			    switch(type){
+			case BOOLEAN:
+			case INTEGER:
+				cout << *it << ":\t.quad 0"<<endl;
+				break;
+			case DOUBLE:
+				cout << *it << ":\t.double 0.0"<<endl;
+				break;
+			case CHAR:
+				cout << *it << ":\t.byte 0"<<endl;
+				break;
+			default:
+				Error("type inconnu.");
+		};
+		DeclaredVariables[*it]=type;
 	}
 }
 
@@ -496,7 +455,6 @@ enum TYPES Expression(void){
 		tag=++TagNumber;
 		oprel=RelationalOperator();
 		type2=SimpleExpression();
-
 		if(type2!=type1){
 			Error("Les deux expressions doivent être du même type pour la comparaison");
 		}
@@ -582,55 +540,49 @@ void AssignementStatement(void){
 		cout << "\tpop "<<variable<<endl;
 }
 
-//DisplayAssignement := "DISPLAY" Expression
-void DisplayAssignement(void){
+void DisplayStatement(void){
 	enum TYPES type;
 	unsigned long long tag=++TagNumber;
 	current=(TOKEN) lexer->yylex();
 	type=Expression();
-	//l'instruction DISPLAY <expression> qui permet d'afficher le résultat d'une expression si son type est INTEGER sur la sortie standard
-	if(type==INTEGER){
-		cout<<"\tpop %rdx\t#The value to be displayed"<<endl;			//%rdx doit contenir la valeur à afficher
-		cout<<"\tmovq %rdx, %rsi\t# Copie vers le registre d'argument"<<endl;   
-		cout<<"\tmovq $FormatString1, %rdi\t#\"%llu\\n\""<<endl;
-		cout<<"\tmovl $0, %eax\t# Préparation pour printf variadique"<<endl;
-	}
-	else if(type==BOOLEAN){
-		cout<<"\tpop %rdx\t# Zero : False, non-zero : true"<<endl;
-		cout<<"\tcmpq $0, %rdx"<<endl;
-		cout<<"\tje False"<<tag<<endl;
-		cout<<"\tmovq $TrueString, %rdi\t# \"TRUE\\n\""<<endl;
-		cout<<"\tjmp Next"<<tag<<endl;
-		cout<<"False"<<tag<<":"<<endl;
-		cout<<"\tmovq $FalseString, %rdi\t# \"FALSE\\n\""<<endl;
-		cout<<"Next"<<tag<<":"<<endl;
-		cout<<"\tmovl $0, %eax\t# Préparation pour printf variadique"<<endl;
-	}
-	else if(type==DOUBLE){
-		cout << "\tfldl (%rsp)\t\t# Charge le DOUBLE du sommet de la pile dans %st(0)" << endl;
-		cout << "\taddq $8, %rsp\t\t# Libère l'espace de la pile (on a lu 8 octets)" << endl;
-		cout << "\tsubq $8, %rsp\t\t# Réserve de l’espace temporaire sur la pile" << endl;
-		cout << "\tfstpl (%rsp)\t\t# Stocke %st(0) dans cet emplacement temporaire" << endl;
-		cout << "\tmovsd (%rsp), %xmm0\t# Copie le DOUBLE vers %xmm0 pour printf" << endl;
-		cout << "\taddq $8, %rsp\t\t# Nettoie la pile temporaire" << endl;
-		cout<<"\tmovq $FormatString2, %rdi\t#\"%f\\n\""<<endl;
-		cout<<"\tmovl $1, %eax\t#Préperation pour appele printf"<<endl;
-	}
-	else if(type==CHAR){
-		cout<<"\tpop %rsi\t# Caractère à afficher dans %al"<<endl;
-		cout<<"\tmovq $FormatString3, %rdi\t# \"%c\\n\""<<endl;
-		cout<<"\tmovl $0, %eax"<<endl;
-	}
-	else
-		Error("DISPLAY ne fonctionne que pour les nombres entiers");
-	// Pour mac :
-	//cout<<"\tpop %rdx\t#The value to be displayed"<<endl;			//%rdx doit contenir la valeur à afficher
-	//cout<<"\tmovq $FormatString1, %rdi\t#\"%llu\\n\""<<endl;
-	//cout<<"\tmovl $0, %eax\t"<<endl;
-	//cout<<"\tpush %rbp\t#save the value in %rbp (modified by printf)"<<endl;
-	//cout<<"\tcall	printf@PLT\t"<<endl;
-	//cout<<"\tpop %rbp\t#restore %rbp value"<<end;
-	cout<<"\tcall	printf@PLT\t"<<endl;
+	switch(type){
+	case INTEGER:
+		cout << "\tpop %rsi\t# The value to be displayed"<<endl;
+		cout << "\tmovq $FormatString1, %rdi\t# \"%llu\\n\""<<endl;
+		cout << "\tmovl	$0, %eax"<<endl;
+		cout << "\tcall	printf@PLT"<<endl;
+		break;
+	case BOOLEAN:
+			cout << "\tpop %rdx\t# Zero : False, non-zero : true"<<endl;
+			cout << "\tcmpq $0, %rdx"<<endl;
+			cout << "\tje False"<<tag<<endl;
+			cout << "\tmovq $TrueString, %rdi\t# \"TRUE\\n\""<<endl;
+			cout << "\tjmp Next"<<tag<<endl;
+			cout << "False"<<tag<<":"<<endl;
+			cout << "\tmovq $FalseString, %rdi\t# \"FALSE\\n\""<<endl;
+			cout << "Next"<<tag<<":"<<endl;
+			cout << "\tcall	puts@PLT"<<endl;
+			break;
+	case DOUBLE:
+			cout << "\tmovsd	(%rsp), %xmm0\t\t# &stack top -> %xmm0"<<endl;
+			cout << "\tsubq	$16, %rsp\t\t# allocation for 3 additional doubles"<<endl;
+			cout << "\tmovsd %xmm0, 8(%rsp)"<<endl;
+			cout << "\tmovq $FormatString2, %rdi\t# \"%lf\\n\""<<endl;
+			cout << "\tmovq	$1, %rax"<<endl;
+			cout << "\tcall	printf"<<endl;
+			cout << "nop"<<endl;
+			cout << "\taddq $24, %rsp\t\t\t# pop nothing"<<endl;
+			break;
+	case CHAR:
+			cout<<"\tpop %rsi\t\t\t# get character in the 8 lowest bits of %si"<<endl;
+			cout << "\tmovq $FormatString3, %rdi\t# \"%c\\n\""<<endl;
+			cout << "\tmovl	$0, %eax"<<endl;
+			cout << "\tcall	printf@PLT"<<endl;
+			break;
+	default:
+			Error("DISPLAY ne fonctionne pas pour ce type de donnée.");
+		}
+
 }
 
 //IfStatement := "IF" Expression "THEN" Statement [ "ELSE" Statement ]
@@ -786,7 +738,7 @@ void Statement(void){
 		else if(strcmp(lexer->YYText(),"BEGIN")==0)
 			BlockStatement();
 		else if(strcmp(lexer->YYText(),"DISPLAY")==0)
-			DisplayAssignement();
+			DisplayStatement();
 		else
 			Error("mot clé inconnu");
 	}
@@ -823,11 +775,12 @@ int main(void){	// First version : Source code on standard input and assembly co
 	// Header for gcc assembler / linker
 	cout << "\t\t\t# This code was produced by the CERI Compiler"<<endl;
 	cout << ".data"<<endl;
-	cout << "FormatString1:\t.string \"%llu\\n\"\t# used by printf to display 64-bit unsigned integers"<<endl;
-	cout << "FormatString2:\t.string \"%f\"\t# used by printf to display 64-bit floating point numbers"<<endl; 
-	cout << "FormatString3:\t.string \"%c\"\t# used by printf to display a 8-bit single character"<<endl;
-	cout << "TrueString:\t.string \"TRUE\\n\"\t# used by printf to display the boolean value TRUE"<<endl; 
-	cout << "FalseString:\t.string \"FALSE\\n\"\t# used by printf to display the boolean value FALSE"<<endl;
+	cout << "FormatString1:\t.string \"%llu\n\"\t# used by printf to display 64-bit unsigned integers"<<endl; 
+	cout << "FormatString2:\t.string \"%lf\n\"\t# used by printf to display 64-bit floating point numbers"<<endl; 
+	cout << "FormatString3:\t.string \"%c\n\"\t# used by printf to display a 8-bit single character"<<endl; 
+	cout << "TrueString:\t.string \"TRUE\n\"\t# used by printf to display the boolean value TRUE"<<endl; 
+	cout << "FalseString:\t.string \"FALSE\n\"\t# used by printf to display the boolean value FALSE"<<endl; 
+
 	// Let's proceed to the analysis and code production
 	current=(TOKEN) lexer->yylex();
 	Program();

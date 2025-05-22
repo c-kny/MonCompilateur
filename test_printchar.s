@@ -1,34 +1,23 @@
-	.file	"testprintf.c"
+	.file	"test_printchar.c"
 	.text
-	.section	.rodata
+	.section	.rodata.str1.1,"aMS",@progbits,1
 .LC0:
-	.string	"%llu\n"
-	.text
+	.string	"%c\n"
+	.section	.text.startup,"ax",@progbits
+	.p2align 4
 	.globl	main
 	.type	main, @function
 main:
-.LFB0:
+.LFB23:
 	.cfi_startproc
 	endbr64
-	pushq	%rbp
-	.cfi_def_cfa_offset 16
-	.cfi_offset 6, -16
-	movq	%rsp, %rbp
-	.cfi_def_cfa_register 6
-	subq	$16, %rsp
-	movq	$12, -8(%rbp)
-	movq	-8(%rbp), %rax
-	movq	%rax, %rsi
-	leaq	.LC0(%rip), %rax
-	movq	%rax, %rdi
-	movl	$0, %eax
-	call	printf@PLT
-	nop
-	leave
-	.cfi_def_cfa 7, 8
-	ret
+	movl	$42, %edx
+	leaq	.LC0(%rip), %rsi
+	movl	$2, %edi
+	xorl	%eax, %eax
+	jmp	__printf_chk@PLT
 	.cfi_endproc
-.LFE0:
+.LFE23:
 	.size	main, .-main
 	.ident	"GCC: (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0"
 	.section	.note.GNU-stack,"",@progbits
