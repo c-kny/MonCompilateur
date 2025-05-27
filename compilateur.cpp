@@ -501,7 +501,6 @@ enum TYPES Expression(void){
 	}
 	return type1;
 }
-
 void Statement(void); //Pour les appels avat déclaration
 
 // AssignementStatement := Identifier ":=" Expression
@@ -633,13 +632,12 @@ void WhileStatement(void){
 	cout<<"EndWhile"<<tag<<":"<<endl;
 }
 
-//ForStatement := "FOR" AssignementStatement "To" Expression ["Step" <constante>]"DO" Statement
+//ForStatement := "FOR" AssignementStatement "To/DOWNTO" Expression [ "STEP" <constante>] "DO" Statement
 void ForStatement(void){
 	unsigned long long tag=++TagNumber;
 	enum TYPES type_control;
-	int step_cpt=1;
-	// to hold the variable name
-	string variable;
+	string variable;	// to hold the variable name
+	int step_cpt = 1; 
 
 	current=(TOKEN) lexer->yylex();
 	//1. Attribuer la valeur initiale (AssignementStatement)
@@ -650,13 +648,13 @@ void ForStatement(void){
 	if(DeclaredVariables[variable]!=INTEGER)
 		Error("La variable de boucle FOR doit être de type INTEGER");
 
-	AssignementStatement();
+	AssignementStatement();		//i :=...
 
 	//2.Controle TO ou DOWNTO
 	bool ascending = true;
-	if(current==KEYWORD&&strcmp(lexer->YYText(),"TO")==0)
+	if(current==KEYWORD && strcmp(lexer->YYText(),"TO")==0)
 		ascending=true;
-	else if(current==KEYWORD&&strcmp(lexer->YYText(),"DOWNTO")==0)
+	else if(current==KEYWORD && strcmp(lexer->YYText(),"DOWNTO")==0)
 		ascending=false;
 	else
 		Error("'TO' ou 'DOWNTO' attendu après assignation");
@@ -664,53 +662,52 @@ void ForStatement(void){
 	current=(TOKEN) lexer->yylex();
 	// 3. Lire la valeur de fin (Expression) et le type controlée.
 	type_control=Expression();
+
 	if(type_control!=INTEGER)
 		Error("L'expression doit être de type INTEGER");
 
-	//STEP côntrole
-	if(current == KEYWORD && strcmp(lexer->YYText(), "STEP") == 0){
-		current=(TOKEN) lexer->yylex();
-		if(current!=NUMBER)
-			Error("doit être constante entière attendue après 'STEP'");
-		step_cpt=atoi(lexer->YYText()); //lire le nombre
-		//après côntole le nombre 
-		if(step_cpt==0)
-			Error("'STEP' ne peut pas être égal à 0");
-		current=(TOKEN) lexer->yylex();	
-	}
+	//côntrole step
+	if(current==KEYWORD&&strcmp(lexer->YYText(),"STEP")==0){
+        current = (TOKEN) lexer->yylex();
+        if(current != NUMBER)
+            Error("Constante entière attendue après 'STEP'");
+        step_cpt = atoi(lexer->YYText());
+        if(step_cpt == 0)
+            Error("'STEP' ne peut pas être égal à 0");
+        current = (TOKEN) lexer->yylex(); 
+    }
+	
+	//4.Controle DO
+	if (!(current==KEYWORD&&strcmp(lexer->YYText(),"DO")==0))
+		Error("'DO' attendu après 'TO' ou 'DOWNTO'");
+
+	//Lire token aprés de DO
+	current=(TOKEN) lexer->yylex();
+
 	cout<<"TestFor"<<tag<<":"<<endl;
-	cout<<"\tpop %rbx\t# End value of the FOR"<<endl;
-    cout<<"\tpop %rax\t# Current value of "<<variable<<endl;
-    cout<<"\tcmpq %rbx, %rax"<<endl;
+    cout << "\tpop %rbx\t\t# limite (TO/DOWNTO) dans %rbx" << endl;
+
+	cout<<"LoopFor"<<tag<<":"<<endl;
+	cout << "\tmov " << variable << ", %rax\t# valeur courante i" << endl;
+    cout << "\tcmpq %rbx, %rax" << endl;
 
     if(ascending)
         cout<< "\tjg EndFor"<<tag <<"\t# if greater, exit"<<endl;
     else
         cout<<"\tjl EndFor"<< tag<<"\t# if less, exit"<<endl;
-
-	//4.Controle DO
-	if (!(current==KEYWORD&&strcmp(lexer->YYText(),"DO")==0))
-	Error("'DO' attendu après 'TO' ou 'DOWNTO'");
-
-	//Lire token aprés de DO
-	current=(TOKEN) lexer->yylex();
-
+	
 	Statement();		// Étant donné que la partie suivant DO est une « Statement », son type est vérifié en elle-même.
-	cout<<"\tpush "<<variable<<endl;
-	cout<<"\tpush $"<<step_cpt<<endl;
-	cout<<"\tpop %rbx"<<endl;
-	cout<<"\tpop %rax"<<endl;
-	if(ascending)
-		cout<<"\taddq %rbx, %rax"<<endl;
-	else
-		cout<<"\tsubq %rbx, %rax"<<endl;
-	cout<<"\tpush %rax" << endl;
-	cout<<"\tpop "<<variable<<endl;
+	// Incrementation
+    cout<<"\tmov "<<variable<<", %rax"<<endl;
+    if(ascending)
+        cout<<"\taddq $"<<step_cpt<<", %rax" << endl;
+    else
+        cout<<"\tsubq $"<<step_cpt<<", %rax" << endl;
+    cout<<"\tmov %rax, "<<variable<<endl;
+    cout<<"\tjmp LoopFor"<<tag<<endl;
 
-	cout<<"\tjmp TestFor"<<tag<<endl;
-	cout<<"EndFor"<<tag<<":"<< endl;
+    cout<<"EndFor"<<tag<<":"<<endl;
 }
-
 //BlockStatement := "BEGIN" Statement { ";" Statement } "END"
 void BlockStatement(void){
 	current=(TOKEN) lexer->yylex();
@@ -723,7 +720,98 @@ void BlockStatement(void){
 		Error("mot-clé END attendu");
 	current=(TOKEN) lexer->yylex();
 }
+//CaseLabelList := Constant { "," Constante }
+// Compare la valeur du CASE avec chaque constante.
+// Chaque constante mène à une étiquette unique de type Case<tag>_<label_id>.
+// Nécessaire uniquement pour CASE car chaque branche a son propre saut.
+void CaseLabelList(unsigned long long tag, int label_id, enum TYPES type_case){
+	string valeur;
+	if(current!=NUMBER && current!=CHARCONST)
+		Error("Constante entière ou caractère attendue");
+	valeur=lexer->YYText();
+	current=(TOKEN) lexer->yylex();
+	//comparaison pour la première constante
+	if (type_case == INTEGER)
+        cout<<"\tcmpq $"<< valeur<< ", %rax"<<endl;
+    else if (type_case == CHAR)
+        cout<<"\tcmpb $"<<valeur<<", %al"<<endl;
+    else
+		Error("CASE ne fonctionne pas pour ce type de donnée.");
+	cout<<"\tje Case"<<tag<<"_"<<label_id<<endl;
 
+	while(current==COMMA){
+		current=(TOKEN) lexer->yylex();
+		if(current!=NUMBER && current!=CHARCONST)
+			Error("Constante entière ou caractère attendue après ','");
+		valeur=lexer->YYText();
+		current=(TOKEN) lexer->yylex();
+
+		if (type_case == INTEGER)
+        	cout<<"\tcmpq $"<< valeur<< ", %rax"<<endl;
+    	else if (type_case == CHAR)
+        	cout<<"\tcmpb $"<<valeur<<", %al"<<endl;
+   		else
+			Error("CASE ne fonctionne pas pour ce type de donnée.");
+		cout<<"\tje Case"<<tag<<"_"<<label_id<<endl;
+	}
+}
+
+//CaseListElement ::= CaseLabelList ":" Statement | Empty
+void CaseListElement(unsigned long long tag, int label_id, enum TYPES type_case){
+	//Si case est vide
+	if(current!=NUMBER && current!=CHARCONST)
+		return;
+
+	//S'il y a des constantes 
+	CaseLabelList(tag, label_id, type_case);
+	cout<<"\tjmp SkipCase"<<tag<<"_"<<label_id<<":"<<endl;
+	cout<<"Case"<<tag<<"_"<<label_id<<":"<<endl;
+	if(current!=COLON)
+		Error("Caractère ':' attendu dans le CASE");
+	current=(TOKEN) lexer->yylex();
+			//Génère l'étiquette pour cette branche du CASE et le bloc d'instructions
+	Statement();
+	cout << "\tjmp FinCase" << tag << endl;
+	cout<<"SkipCase"<<tag<<"_"<<label_id<<":"<<endl;
+}
+
+
+
+//CaseStatement := "CASE" Expression "OF" CaseListeElement { ";" CaseListeElement } "END"
+
+void CaseStatement(void){
+	unsigned long long tag=++TagNumber;
+	enum TYPES type_case;
+	int label_id=0;
+	current=(TOKEN) lexer->yylex();
+
+	type_case=Expression();
+	if (type_case != INTEGER && type_case != CHAR)
+    	Error("CASE ne supporte que les types INTEGER ou CHAR");
+	if(current!=KEYWORD||strcmp(lexer->YYText(),"OF")!=0)
+		Error("mot-clé 'OF' attendu");
+	current=(TOKEN) lexer->yylex();
+
+	if(current!=NUMBER && current!=CHARCONST)
+		Error("CASE doit contenir au moins une branche.");
+	cout<<"\tpop %rax\t# Valeur à comparer dans le CASE"<<endl;
+
+	label_id++;
+	CaseListElement(tag, label_id, type_case);
+
+	while(current==SEMICOLON){
+		current=(TOKEN) lexer->yylex();
+		if(current==NUMBER||current==CHARCONST){
+			label_id++;
+			CaseListElement(tag, label_id, type_case);
+		}
+	}
+	if(current!=KEYWORD||strcmp(lexer->YYText(), "END")!=0)
+		Error("mot-clé END attendu");
+	current=(TOKEN) lexer->yylex();
+
+	cout<<"FinCase"<<tag<<":"<<endl;
+}
 // Statement := AssignementStatement | IfStatement | WhileStatement | ForStatement | BlockStatement | DisplayAssignement
 void Statement(void){
 	if(current==ID)
@@ -739,6 +827,8 @@ void Statement(void){
 			BlockStatement();
 		else if(strcmp(lexer->YYText(),"DISPLAY")==0)
 			DisplayStatement();
+		else if(strcmp(lexer->YYText(),"CASE")==0)
+			CaseStatement();
 		else
 			Error("mot clé inconnu");
 	}
@@ -775,11 +865,11 @@ int main(void){	// First version : Source code on standard input and assembly co
 	// Header for gcc assembler / linker
 	cout << "\t\t\t# This code was produced by the CERI Compiler"<<endl;
 	cout << ".data"<<endl;
-	cout << "FormatString1:\t.string \"%llu\n\"\t# used by printf to display 64-bit unsigned integers"<<endl; 
-	cout << "FormatString2:\t.string \"%lf\n\"\t# used by printf to display 64-bit floating point numbers"<<endl; 
-	cout << "FormatString3:\t.string \"%c\n\"\t# used by printf to display a 8-bit single character"<<endl; 
-	cout << "TrueString:\t.string \"TRUE\n\"\t# used by printf to display the boolean value TRUE"<<endl; 
-	cout << "FalseString:\t.string \"FALSE\n\"\t# used by printf to display the boolean value FALSE"<<endl; 
+	cout << "FormatString1:\t.string \"%llu\\n\"\t# used by printf to display 64-bit unsigned integers"<<endl; 
+	cout << "FormatString2:\t.string \"%lf\\n\"\t# used by printf to display 64-bit floating point numbers"<<endl; 
+	cout << "FormatString3:\t.string \"%c\\n\"\t# used by printf to display a 8-bit single character"<<endl; 
+	cout << "TrueString:\t.string \"TRUE\\n\"\t# used by printf to display the boolean value TRUE"<<endl; 
+	cout << "FalseString:\t.string \"FALSE\\n\"\t# used by printf to display the boolean value FALSE"<<endl; 
 
 	// Let's proceed to the analysis and code production
 	current=(TOKEN) lexer->yylex();
