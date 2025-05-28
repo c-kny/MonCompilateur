@@ -814,7 +814,10 @@ void CaseStatement(void){
 	if(current!=KEYWORD||strcmp(lexer->YYText(), "END")!=0)
 		Error("mot-clé END attendu");
 	current=(TOKEN) lexer->yylex();
-
+	if(current == DOT)
+		current=(TOKEN) lexer->yylex();
+	else
+    	Error("caractère '.' attendu");
 	cout<<"FinCase"<<tag<<":"<<endl;
 }
 // Statement := AssignementStatement | IfStatement | WhileStatement | ForStatement | BlockStatement | DisplayAssignement

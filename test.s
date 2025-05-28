@@ -5,71 +5,37 @@ FormatString2:	.string "%lf\n"	# used by printf to display 64-bit floating point
 FormatString3:	.string "%c\n"	# used by printf to display a 8-bit single character
 TrueString:	.string "TRUE\n"	# used by printf to display the boolean value TRUE
 FalseString:	.string "FALSE\n"	# used by printf to display the boolean value FALSE
-y:	.byte 0
+i:	.quad 0
 	.align 8
 	.text		# The following lines contain the program
 	.globl main	# The main function must be visible from outside
 main:			# The main function body :
 	movq %rsp, %rbp	# Save the position of the stack's top
+	push $1
+	pop i
+	push $5
+TestFor1:
+	pop %rbx		# limite (TO/DOWNTO) dans %rbx
+LoopFor1:
+	mov i, %rax	# valeur courante i
+	cmpq %rbx, %rax
+	jg EndFor1	# if greater, exit
+	push i
+	pop %rsi	# The value to be displayed
+	movq $FormatString1, %rdi	# "%llu\n"
+	movl	$0, %eax
+	call	printf@PLT
 	movq $0, %rax
-	movb $'C', %al	# %al est la partie basse de %rax (8 bits) pour stocker un caractère
-	push %rax	#Empile la version 64 bits du caractère 'C'
-	pop %rax
-	movb %al,y
-	push y
-	pop %rax	# Valeur à comparer dans le CASE
-	cmpb $'A', %al
-	je Case1_1
-	jmp SkipCase1_1
-Case1_1:
-	movq $0, %rax
-	movb $'A', %al	# %al est la partie basse de %rax (8 bits) pour stocker un caractère
-	push %rax	#Empile la version 64 bits du caractère 'A'
+	movb $'\n', %al	# %al est la partie basse de %rax (8 bits) pour stocker un caractère
+	push %rax	#Empile la version 64 bits du caractère '\n'
 	pop %rsi			# get character in the 8 lowest bits of %si
 	movq $FormatString3, %rdi	# "%c\n"
 	movl	$0, %eax
 	call	printf@PLT
-	jmp FinCase1
-SkipCase1_1:
-	cmpb $'B', %al
-	je Case1_2
-	jmp SkipCase1_2
-Case1_2:
-	movq $0, %rax
-	movb $'C', %al	# %al est la partie basse de %rax (8 bits) pour stocker un caractère
-	push %rax	#Empile la version 64 bits du caractère 'C'
-	pop %rsi			# get character in the 8 lowest bits of %si
-	movq $FormatString3, %rdi	# "%c\n"
-	movl	$0, %eax
-	call	printf@PLT
-	jmp FinCase1
-SkipCase1_2:
-	cmpb $'C', %al
-	je Case1_3
-	jmp SkipCase1_3
-Case1_3:
-	movq $0, %rax
-	movb $'B', %al	# %al est la partie basse de %rax (8 bits) pour stocker un caractère
-	push %rax	#Empile la version 64 bits du caractère 'B'
-	pop %rsi			# get character in the 8 lowest bits of %si
-	movq $FormatString3, %rdi	# "%c\n"
-	movl	$0, %eax
-	call	printf@PLT
-	jmp FinCase1
-SkipCase1_3:
-	cmpb $'D', %al
-	je Case1_4
-	jmp SkipCase1_4
-Case1_4:
-	movq $0, %rax
-	movb $'D', %al	# %al est la partie basse de %rax (8 bits) pour stocker un caractère
-	push %rax	#Empile la version 64 bits du caractère 'D'
-	pop %rsi			# get character in the 8 lowest bits of %si
-	movq $FormatString3, %rdi	# "%c\n"
-	movl	$0, %eax
-	call	printf@PLT
-	jmp FinCase1
-SkipCase1_4:
-FinCase1:
+	mov i, %rax
+	addq $1, %rax
+	mov %rax, i
+	jmp LoopFor1
+EndFor1:
 	movq %rbp, %rsp		# Restore the position of the stack's top
 	ret			# Return from main function

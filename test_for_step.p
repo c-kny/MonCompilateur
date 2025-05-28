@@ -1,7 +1,7 @@
 VAR
     i : INTEGER.
-
-FOR i:=1 TO 5 DO
+i:=1;
+FOR i:=1 TO 10 STEP 3 DO
 BEGIN
     DISPLAY i;
     DISPLAY '\n'
