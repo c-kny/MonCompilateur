@@ -120,7 +120,6 @@ enum TYPES Number(void){
 	
 }
 
-
 //cette fonction pour un seul caractère encadré par des guillemets simples.
 enum TYPES CharConst(void){
 	cout<<"\tmovq $0, %rax"<<endl;		//On initialise %rax à 0 (nécessaire car on n’utilise que %al, soit 1 octet sur 8)
@@ -262,6 +261,7 @@ enum TYPES Term(void){
 	}
 	return type1;
 }
+
 // AdditiveOperator := "+" | "-" | "||"
 OPADD AdditiveOperator(void){
 	OPADD opadd;
@@ -341,6 +341,7 @@ enum TYPES SimpleExpression(void){
 	}
 	return type1;
 }
+
 //Utilisé lors de la déclaration des variables (VarDeclaration)
 enum TYPES Type(void){
 	if(current!=KEYWORD)
@@ -423,6 +424,7 @@ void VarDeclarationPart(void){
 		Error("caractère '.' attendu");
 	current=(TOKEN) lexer->yylex();
 }
+
 // Cette fonction reconnaît les opérateurs relationnels et retourne l’énumération correspondante.
 // RelationalOperator := "==" | "!=" | "<" | ">" | "<=" | ">="  
 OPREL RelationalOperator(void){
@@ -501,6 +503,7 @@ enum TYPES Expression(void){
 	}
 	return type1;
 }
+
 void Statement(void); //Pour les appels avat déclaration
 
 // AssignementStatement := Identifier ":=" Expression
@@ -611,6 +614,7 @@ void IfStatement(void){
 	}
 	cout<<"Next"<<tag<<":"<<endl;
 }
+
 //WhileStatement := "WHILE" Expression "DO" Statement
 void WhileStatement(void){
 	unsigned long long tag=TagNumber++;
@@ -668,13 +672,13 @@ void ForStatement(void){
 
 	//côntrole step
 	if(current==KEYWORD&&strcmp(lexer->YYText(),"STEP")==0){
-        current = (TOKEN) lexer->yylex();
-        if(current != NUMBER)
+        current=(TOKEN) lexer->yylex();
+        if(current!=NUMBER)
             Error("Constante entière attendue après 'STEP'");
-        step_cpt = atoi(lexer->YYText());
+        step_cpt=atoi(lexer->YYText());
         if(step_cpt == 0)
             Error("'STEP' ne peut pas être égal à 0");
-        current = (TOKEN) lexer->yylex(); 
+        current=(TOKEN) lexer->yylex(); 
     }
 	
 	//4.Controle DO
@@ -708,6 +712,7 @@ void ForStatement(void){
 
     cout<<"EndFor"<<tag<<":"<<endl;
 }
+
 //BlockStatement := "BEGIN" Statement { ";" Statement } "END"
 void BlockStatement(void){
 	current=(TOKEN) lexer->yylex();
@@ -720,6 +725,7 @@ void BlockStatement(void){
 		Error("mot-clé END attendu");
 	current=(TOKEN) lexer->yylex();
 }
+
 //CaseLabelList := Constant { "," Constante }
 // Compare la valeur du CASE avec chaque constante.
 // Chaque constante mène à une étiquette unique de type Case<tag>_<label_id>.
@@ -764,7 +770,7 @@ void CaseListElement(unsigned long long tag, int label_id, enum TYPES type_case)
 
 	//S'il y a des constantes 
 	CaseLabelList(tag, label_id, type_case);
-	cout<<"\tjmp SkipCase"<<tag<<"_"<<label_id<<":"<<endl;
+	cout<<"\tjmp SkipCase"<<tag<<"_"<<label_id<<endl;
 	cout<<"Case"<<tag<<"_"<<label_id<<":"<<endl;
 	if(current!=COLON)
 		Error("Caractère ':' attendu dans le CASE");
@@ -778,7 +784,6 @@ void CaseListElement(unsigned long long tag, int label_id, enum TYPES type_case)
 
 
 //CaseStatement := "CASE" Expression "OF" CaseListeElement { ";" CaseListeElement } "END"
-
 void CaseStatement(void){
 	unsigned long long tag=++TagNumber;
 	enum TYPES type_case;

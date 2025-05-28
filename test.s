@@ -20,7 +20,7 @@ main:			# The main function body :
 	pop %rax	# Valeur à comparer dans le CASE
 	cmpb $'A', %al
 	je Case1_1
-	jmp SkipCase1_1:
+	jmp SkipCase1_1
 Case1_1:
 	movq $0, %rax
 	movb $'A', %al	# %al est la partie basse de %rax (8 bits) pour stocker un caractère
@@ -33,5 +33,43 @@ Case1_1:
 SkipCase1_1:
 	cmpb $'B', %al
 	je Case1_2
-	jmp SkipCase1_2:
+	jmp SkipCase1_2
 Case1_2:
+	movq $0, %rax
+	movb $'C', %al	# %al est la partie basse de %rax (8 bits) pour stocker un caractère
+	push %rax	#Empile la version 64 bits du caractère 'C'
+	pop %rsi			# get character in the 8 lowest bits of %si
+	movq $FormatString3, %rdi	# "%c\n"
+	movl	$0, %eax
+	call	printf@PLT
+	jmp FinCase1
+SkipCase1_2:
+	cmpb $'C', %al
+	je Case1_3
+	jmp SkipCase1_3
+Case1_3:
+	movq $0, %rax
+	movb $'B', %al	# %al est la partie basse de %rax (8 bits) pour stocker un caractère
+	push %rax	#Empile la version 64 bits du caractère 'B'
+	pop %rsi			# get character in the 8 lowest bits of %si
+	movq $FormatString3, %rdi	# "%c\n"
+	movl	$0, %eax
+	call	printf@PLT
+	jmp FinCase1
+SkipCase1_3:
+	cmpb $'D', %al
+	je Case1_4
+	jmp SkipCase1_4
+Case1_4:
+	movq $0, %rax
+	movb $'D', %al	# %al est la partie basse de %rax (8 bits) pour stocker un caractère
+	push %rax	#Empile la version 64 bits du caractère 'D'
+	pop %rsi			# get character in the 8 lowest bits of %si
+	movq $FormatString3, %rdi	# "%c\n"
+	movl	$0, %eax
+	call	printf@PLT
+	jmp FinCase1
+SkipCase1_4:
+FinCase1:
+	movq %rbp, %rsp		# Restore the position of the stack's top
+	ret			# Return from main function

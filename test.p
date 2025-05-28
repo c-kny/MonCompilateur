@@ -1,8 +1,9 @@
-VAR 
-    y : CHAR. 
- y := 'C'; 
+ VAR 
+    y :CHAR. 
+ y:='C'; 
  CASE y OF
    'A': DISPLAY 'A'; 
-   'B','C': DISPLAY 'BC'; 
-   'D': DISPLAY 'D'
+   'B': DISPLAY 'C';
+   'C': DISPLAY 'B'; 
+   'D': DISPLAY 'D';
  END.
